@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from zoneinfo import ZoneInfo
 
 # -------------------------------
 # Завантажуємо змінні з .env
@@ -27,6 +28,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler()
+kyiv_tz = ZoneInfo("Europe/Kyiv")  # Таймзона Києва
 
 # -------------------------------
 # Список учнів
@@ -100,8 +102,9 @@ async def finalize_attendance():
             queue.append(name)
             break
 
-    # формуємо звіт
-    text = f"📋 Присутність на {datetime.now().date()}:\n\n"
+    # формуємо звіт з Київським часом
+    now = datetime.now(kyiv_tz)
+    text = f"📋 Присутність на {now.date()} о {now.strftime('%H:%M:%S')}:\n\n"
     for name in students:
         if name in attendance:
             st = attendance[name]["status"]
@@ -145,12 +148,19 @@ async def duty_status(message: types.Message):
     await message.answer("Дякую, твоя відповідь записана.", reply_markup=types.ReplyKeyboardRemove())
 
 # -------------------------------
+# Тестова команда для перевірки часу
+# -------------------------------
+@dp.message(F.text == "/time")
+async def show_time(message: types.Message):
+    await message.answer(f"Зараз в Києві: {datetime.now(kyiv_tz).strftime('%H:%M:%S')}")
+
+# -------------------------------
 # Планувальник завдань
 # -------------------------------
 async def on_startup():
-    scheduler.add_job(ask_attendance, "cron", hour=8, minute=0)
-    scheduler.add_job(finalize_attendance, "cron", hour=8, minute=30)
-    scheduler.add_job(ask_duty_done, "cron", hour=15, minute=0)
+    scheduler.add_job(ask_attendance, "cron", hour=8, minute=0, timezone=kyiv_tz)
+    scheduler.add_job(finalize_attendance, "cron", hour=8, minute=30, timezone=kyiv_tz)
+    scheduler.add_job(ask_duty_done, "cron", hour=15, minute=0, timezone=kyiv_tz)
     scheduler.start()
 
 # -------------------------------
